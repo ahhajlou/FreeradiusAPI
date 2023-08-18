@@ -1,10 +1,12 @@
-import enum
-from enum import Enum
-from pydantic import BaseModel, field_validator, FieldValidationInfo, model_validator
+import datetime
+from enum import Enum, auto
+from typing import Any
+
+from pydantic import BaseModel, model_validator, ValidationError, field_validator, FieldValidationInfo
 
 from app.api.model import User
 
-RadiusOperators = enum.Enum(
+RadiusOperators = Enum(
     "RadiusOperators", {
         "==": "==",
         ":=": ":=",
@@ -21,26 +23,60 @@ class PasswordType(str, Enum):
     crypt = "Crypt-Password"
 
 
-class RadiusAttribute(BaseModel):
-    password: PasswordType = PasswordType.clear_text
+class RadiusAttribute(str, Enum):
+    password: str = PasswordType.clear_text.value
+    expiration: str = "Expiration"
+    simultaneous_use: str = "Simultaneous-Use"
+
+
+class RadiusAttributePair(BaseModel):
+    attribute: RadiusAttribute
+    value: str
 
 
 class RadCheckModel(BaseModel):
-    user: User
-    attribute: RadiusAttribute
-    op: RadiusOperators = RadiusOperators['==']
+    user: User | str
+    attribute: RadiusAttribute | str
+    op: RadiusOperators | str = RadiusOperators[':=']
     value: str | None = None
 
 
-    @field_validator("value", mode="before")
+    @field_validator("attribute", mode="after")
     @classmethod
-    def value_(cls, v: str, info: FieldValidationInfo):
-        if info.data['attribute'] == RadiusAttribute.password:
-            return info.data['user'].password
-        return v
+    def attribute_convertor(cls, v: RadiusAttribute | str, info: FieldValidationInfo):
+        if isinstance(v, str):  # from db
+            return RadiusAttribute(v)
+        return v.value
+
+    @field_validator("op", mode="after")
+    @classmethod
+    def attribute_convertor(cls, v: RadiusOperators | str, info: FieldValidationInfo):
+        if isinstance(v, str):
+            return RadiusOperators(v)
+        elif isinstance(v, RadiusOperators):
+            return v.value
+
+
+
 
     @model_validator(mode='after')
-    def validated_radius(self):
+    def radius_validator(self):
         if self.attribute == RadiusAttribute.password:
             self.value = self.user.password
+
+        if self.attribute == RadiusAttribute.expiration:
+            if not isinstance(self.user.expire, datetime.datetime):
+                raise ValueError("The value is not datetime.")
+            self.value = self.user.expire.strftime('%Y-%m-%d')
+
         return self
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:
+        result = dict()
+        result.update(
+            username=self.user.username,
+            attribute=self.attribute.value,
+            op=self.op.value,
+            value=self.value
+        )
+        return result
