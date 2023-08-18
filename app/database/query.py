@@ -7,18 +7,20 @@ from . import GetSessionDB
 
 from app.database.model import RadCheck
 from app.api.model import User#, UserUsage
-from app.radius.radcheck import RadCheckModel, RadiusAttribute
+from app.radius.radcheck import RadCheckModel, GenerateRadCheckModels
 
 
 async def create_user_db(user: User, session: AsyncSession):
-    user_password = RadCheckModel(user=user, attribute=RadiusAttribute.password)
-    user_expire = RadCheckModel(user=user, attribute=RadiusAttribute.expiration)
+    radchecks_list = GenerateRadCheckModels(user=user)
+    radchecks_list.gen()
+
     async with session.begin():
-        session.add(RadCheck(**user_password.model_dump()))
-        session.add(RadCheck(**user_expire.model_dump()))
-        if user.limit > 0:
-            user_simultaneous_use = RadCheckModel(user=user, attribute=RadiusAttribute.simultaneous_use)
-            session.add(RadCheck(**user_simultaneous_use.model_dump()))
+        for radcheck in radchecks_list.radchecks:
+            session.add(
+                RadCheck(
+                    **radcheck.model_dump()
+                )
+            )
 
 
 async def get_user_db(username: str, session: AsyncSession):
@@ -27,11 +29,10 @@ async def get_user_db(username: str, session: AsyncSession):
 
     models = []
     for r in result.scalars():
-        # RadCheckModel.from_orm
         print(r.username, r.attribute, r.op, r.value)
         models.append(
             RadCheckModel(
-                user=r.username,
+                username=r.username,
                 attribute=r.attribute,
                 op=r.op,
                 value=r.value if r.value else " "
