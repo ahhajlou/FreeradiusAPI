@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from .base import async_session, engine, Base
 
-from .model import User  # fix alembic autogenerate revision issue
+# from .model import User  # fix alembic autogenerate revision issue
 
 
 class GetSessionDB:  # Async context manager

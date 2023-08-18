@@ -1,10 +1,27 @@
-from sqlalchemy import create_engine, text, func, asc, desc
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR
+import enum
+from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR, Enum, Text
 from sqlalchemy.dialects.mysql import VARCHAR, INTEGER, BIGINT, DATETIME
 
 from .base import Base
+
+
+class OpenVPNProtocol(str, enum.Enum):
+    tcp4 = "tcp4"
+    udp4 = "udp4"
+    tcp6 = "tcp6"
+    udp6 = "udp6"
+
+
+class OpenVPNServer(Base):
+    __tablename__ = "openvpn_servers"
+
+    id = Column(Integer, primary_key=True)
+    ip = Column(String(255))
+    port = Column(Integer)
+    protocol = Column(Enum(OpenVPNProtocol), default=OpenVPNProtocol.tcp4)
+    x509_name = Column(String(255))
+    ca = Column(Text)
+    tls_crypt = Column(Text)
 
 
 class RadCheck(Base):
