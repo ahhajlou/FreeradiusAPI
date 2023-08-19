@@ -8,15 +8,18 @@ from . import GetSessionDB
 
 from app.database.model import RadCheck
 from app.api.model import User, UserGetResponse
-from app.radius.radcheck import RadCheckModel, GenerateRadCheckModels, RasdCheckTest
+from app.radius.radcheck import RadCheckModel, RadCheckModels
 
 
 async def create_user_db(user: User, session: AsyncSession):
-    radchecks_list = GenerateRadCheckModels(user=user)
-    radchecks_list.gen()
+    # radchecks_list = GenerateRadCheckModels(user=user)
+    # radchecks_list.gen()
+    radchecks_list = RadCheckModels.dmp(user=user)
 
     async with session.begin():
+        print(radchecks_list)
         for radcheck in radchecks_list.radchecks:
+            print(radcheck)
             session.add(
                 RadCheck(
                     **radcheck.model_dump()
@@ -27,6 +30,7 @@ async def create_user_db(user: User, session: AsyncSession):
 async def get_user_db(username: str, session: AsyncSession):
     stmt = select(RadCheck).where(RadCheck.username == username)
     result = await session.execute(stmt)
+    model = RadCheckModels.model_validate(from_attributes=True)
     print(RasdCheckTest.model_validate(result.scalars().all()))
     pass
 
@@ -35,25 +39,10 @@ async def get_user_db(username: str, session: AsyncSession):
     for r in result.scalars().all():
         # print(r.to_dict())
         # print(RadCheckModel.model_validate(r.to_dict()))
-        try:
             print(RasdCheckTest.model_validate(r))
         #     # print(TypeAdapter(RadCheckModel).validate_python(r.to_dict()))
         #     print(RasdCheckTest.model_validate(r.to_dict()))
-        except:
-            print("error")
-        continue
-        try:
-            print(r.to_dict())
-            models.append(
-                RadCheckModel(
-                    username=r.username,
-                    attribute=r.attribute,
-                    op=r.op,
-                    value=r.value
-                )
-            )
-        except:
-            continue
+
 
 
 #

@@ -1,4 +1,5 @@
 import datetime
+import typing
 from typing import List
 from pydantic import (
     Field,
@@ -9,20 +10,34 @@ from pydantic import (
     model_validator
 )
 
+from app.radius import radcheck
+
 
 class User(BaseModel):
     username: str
-    password: str
-    expire: int | datetime.datetime
-    limit: int = Field(gt=-1, description="data_limit can be 0 or greater")
-    max_clients: int | None = None
+    password: typing.Annotated[str, radcheck.RadiusAttributeType.password]
+    plan_period: typing.Annotated[int, radcheck.RadiusAttributeType.expiration]
+    traffic: int = Field(gt=-1, description="traffic can be 0 or greater")
+    max_clients: typing.Annotated[int, radcheck.RadiusAttributeType.simultaneous_use]
 
-    @field_validator("expire", mode="after")
-    @classmethod
-    def username_valid(cls, v: int, info: FieldValidationInfo) -> datetime.datetime:
-        if isinstance(v, datetime.datetime):
-            return v
-        return datetime.datetime.now() + datetime.timedelta(days=v)
+    def get_field_by_annotated_type(self, tp):
+        print(self.__annotations__.items())
+        for k, v in self.__annotations__.items():
+            print(f"{k} --- {v}")
+            try:
+                if tp == typing.get_args(v)[1]:
+                    print("Dumped model::::::", self.model_dump(), '-f-f-f', typing.get_args(v), " - ", k)
+                    return self.model_dump()[k]
+            except IndexError:
+                continue
+        print("%%%%_______%%%%%")
+
+    # @field_validator("expire", mode="after")
+    # @classmethod
+    # def username_valid(cls, v: int, info: FieldValidationInfo) -> datetime.datetime:
+    #     if isinstance(v, datetime.datetime):
+    #         return v
+    #     return datetime.datetime.now() + datetime.timedelta(days=v)
 
 
 class UserCreateResponse(BaseModel):

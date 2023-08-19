@@ -13,7 +13,13 @@ from pydantic import (
     AliasChoices
 )
 
-from app.api.model import User
+# from app.api import model
+import typing
+
+
+Date = typing.TypeVar("Date")
+Limit = typing.TypeVar("Limit")
+# GEN = typing.TypeVar("GEN", Date, Limit)
 
 RadiusOperators = Enum(
     "RadiusOperators", {
@@ -32,111 +38,90 @@ class PasswordType(str, Enum):
     crypt = "Crypt-Password"
 
 
-class RadiusAttributeType(Enum):
-    password: PasswordType | str = PasswordType.clear_text
+class RadiusAttributeType(str, Enum):
+    # TODO: in future make password field options better
+    # password: PasswordType | str = PasswordType.clear_text
+    password: str = "Cleartext-Password"
     expiration: str = "Expiration"
     simultaneous_use: str = "Simultaneous-Use"
 
 
 class RadiusAttributePair(BaseModel):
-    attribute: RadiusAttributeType
-    value: datetime.datetime | str
-    op: RadiusOperators | str = RadiusOperators[':=']
+    attribute: str
+    value: str
+    op: str = RadiusOperators[':='].value
 
-    @field_validator("attribute", mode="before")
+
+    @field_validator("value", mode="before")
     @classmethod
-    def atrribute_from_db(cls, v: str):
-        if not isinstance(v, (str, RadiusAttributeType)):
-            raise ValueError("attribute should be either RadiusAttributeType or str.")
-        if isinstance(v, str):
-            return RadiusAttributeType(v)
+    def check_values(cls, v: Any, info: FieldValidationInfo):
+        if info.data['attribute'] == RadiusAttributeType.expiration.value:
+            dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
+            return dt.strftime('%Y-%m-%d')
         return v
+
+    # @field_validator("attribute", mode="before")
+    # @classmethod
+    # def atrribute_from_db(cls, v: str):
+    #     if not isinstance(v, (str, RadiusAttributeType)):
+    #         raise ValueError("attribute should be either RadiusAttributeType or str.")
+    #     if isinstance(v, str):
+    #         return RadiusAttributeType(v)
+    #     return v
 
     @model_validator(mode="after")
     def check_all(self):
         if self.attribute == RadiusAttributeType.password:
             self.value = RadiusAttributeType.password.value
 
-        if self.attribute == RadiusAttributeType.expiration:
-            if isinstance(self.value, datetime.datetime):
-                self.value = self.value.strftime('%Y-%m-%d')
-            else:
-                self.value = datetime.datetime.strptime(self.value, '%Y-%m-%d')
+        # if self.attribute == RadiusAttributeType.expiration:
+        #     self.value = (datetime.datetime.now() + datetime.timedelta(days=int(self.value))).strftime('%Y-%m-%d')
+            # if isinstance(self.value, datetime.datetime):
+            #     self.value = self.value.strftime('%Y-%m-%d')
+            # else:
+            #     self.value = datetime.datetime.strptime(self.value, '%Y-%m-%d')
 
 
-    @field_validator("op", mode="after")
-    @classmethod
-    def attribute_convertor(cls, v: RadiusOperators | str, info: FieldValidationInfo):
-        if isinstance(v, str):
-            return RadiusOperators(v)
-        else:
-            return v.value
+    # @field_validator("op", mode="after")
+    # @classmethod
+    # def attribute_convertor(cls, v: RadiusOperators | str, info: FieldValidationInfo):
+    #     return ":="
+    #     if isinstance(v, str):
+    #         return RadiusOperators(v)
+    #     else:
+    #         return v.value
 
 
-class RadCheckModel(RadiusAttributePair):  # Entrypoint
-    username: str
-
-    def model_dump(self, *args, **kwargs) -> dict[str, Any]:
-        result = dict()
-        result.update(
-            username=self.username,
-            attribute=self.attribute.value,
-            op=self.op.value,
-            value=self.value
-        )
-        return result
-
-
-class GenerateRadCheckModels(BaseModel):
-    user: User
-    radchecks: List[RadCheckModel] = []
-
-    def gen(self):
-        self.radchecks.append(
-            RadCheckModel(
-                username=self.user.username,
-                attribute=RadiusAttributeType.password,
-                value=self.user.password
-            )
-        )
-        self.radchecks.append(
-            RadCheckModel(
-                username=self.user.username,
-                attribute=RadiusAttributeType.expiration,
-                value=self.user.expire
-            )
-        )
-
-        if self.user.limit > 0:
-            self.radchecks.append(
-                RadCheckModel(
-                    username=self.user.username,
-                    attribute=RadiusAttributeType.simultaneous_use,
-                    value=self.user.limit
-                )
-            )
-
-
-
-class RasdCheckTest(BaseModel):
+class RadCheckModel(BaseModel):
     username: str
     attribute: str
     op: str
     value: str
 
+
+class RadCheckModels(BaseModel):
+    radchecks: List[RadCheckModel]
+
+    def salam(self, objs: List):
+        l = list()
+        for obj in objs:
+               l.append(RadCheckModel(obj.to_dict()))
     @classmethod
-    def model_validate(
-        cls,
-        obj: Any,
-        *,
-        strict: bool | None = None,
-        from_attributes: bool | None = None,
-        context: dict[str, Any] | None = None,
-    ):
-        print("hi")
-        print(type(obj))
-        obj = obj.to_dict()
-        return cls.__pydantic_validator__.validate_python(
-            obj, strict=strict, from_attributes=from_attributes, context=context
-        )
+    def dmp(cls, user):
+        l = list()
+        for attr in RadiusAttributeType:
+            print(attr)
+            if value := user.get_field_by_annotated_type(attr):
+                print(True)
+                l.append(
+                    RadCheckModel(
+                        username=user.username,
+                        **RadiusAttributePair(
+                            attribute=attr.value,
+                            value=value,
+                        ).model_dump()
+                    )
+                )
+        print(l)
+        return cls(radchecks=l)
 

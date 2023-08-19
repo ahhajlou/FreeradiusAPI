@@ -17,14 +17,14 @@ def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
 
 
-@app.post("/user/create", response_model=UserCreateResponse)
+@app.post("/user/create")#, response_model=UserCreateResponse)
 async def create_user(user: User, db: AsyncSession = Depends(get_db)):
     try:
         await create_user_db(user, db)
     except sqlalchemy.exc.IntegrityError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User exists.")
-    return user
-
+    # return user
+    return {"msg": "hi"}
 
 @app.post("/user/renew")
 async def renew_user(db: AsyncSession = Depends(get_db)):
