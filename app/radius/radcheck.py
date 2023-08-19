@@ -40,24 +40,29 @@ class RadiusAttributeType(Enum):
 
 class RadiusAttributePair(BaseModel):
     attribute: RadiusAttributeType
-    value: str
+    value: datetime.datetime | str
     op: RadiusOperators | str = RadiusOperators[':=']
 
-    @field_validator("attribute", mode="after")
+    @field_validator("attribute", mode="before")
     @classmethod
-    def password_enum_to_str(cls, v: RadiusAttributeType):
-        if v == RadiusAttributeType.password:
-            return v.value
+    def atrribute_from_db(cls, v: str):
+        if not isinstance(v, (str, RadiusAttributeType)):
+            raise ValueError("attribute should be either RadiusAttributeType or str.")
+        if isinstance(v, str):
+            return RadiusAttributeType(v)
+        return v
 
-    @field_validator("value", mode="after")
-    @classmethod
-    def password_to_str(cls, v: str, info: FieldValidationInfo):
-        print(info)
-        if info.data['attribute'] == RadiusAttributeType.expiration:
-            if isinstance(v, datetime.datetime):
-                return v.strftime('%Y-%m-%d')
+    @model_validator(mode="after")
+    def check_all(self):
+        if self.attribute == RadiusAttributeType.password:
+            self.value = RadiusAttributeType.password.value
+
+        if self.attribute == RadiusAttributeType.expiration:
+            if isinstance(self.value, datetime.datetime):
+                self.value = self.value.strftime('%Y-%m-%d')
             else:
-                return datetime.datetime.strptime(v, '%Y-%m-%d')
+                self.value = datetime.datetime.strptime(self.value, '%Y-%m-%d')
+
 
     @field_validator("op", mode="after")
     @classmethod
@@ -72,9 +77,6 @@ class RadCheckModel(RadiusAttributePair):  # Entrypoint
     username: str
 
     def model_dump(self, *args, **kwargs) -> dict[str, Any]:
-        if not isinstance(self.user, User):
-            raise ValueError("Can not dump value queried from database.")
-
         result = dict()
         result.update(
             username=self.username,
@@ -113,4 +115,28 @@ class GenerateRadCheckModels(BaseModel):
                     value=self.user.limit
                 )
             )
+
+
+
+class RasdCheckTest(BaseModel):
+    username: str
+    attribute: str
+    op: str
+    value: str
+
+    @classmethod
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: dict[str, Any] | None = None,
+    ):
+        print("hi")
+        print(type(obj))
+        obj = obj.to_dict()
+        return cls.__pydantic_validator__.validate_python(
+            obj, strict=strict, from_attributes=from_attributes, context=context
+        )
 

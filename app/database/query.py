@@ -1,13 +1,14 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, func, asc, desc, select, and_, func
 
 from . import GetSessionDB
 
 from app.database.model import RadCheck
-from app.api.model import User#, UserUsage
-from app.radius.radcheck import RadCheckModel, GenerateRadCheckModels
+from app.api.model import User, UserGetResponse
+from app.radius.radcheck import RadCheckModel, GenerateRadCheckModels, RasdCheckTest
 
 
 async def create_user_db(user: User, session: AsyncSession):
@@ -26,20 +27,33 @@ async def create_user_db(user: User, session: AsyncSession):
 async def get_user_db(username: str, session: AsyncSession):
     stmt = select(RadCheck).where(RadCheck.username == username)
     result = await session.execute(stmt)
+    print(RasdCheckTest.model_validate(result.scalars().all()))
+    pass
 
     models = []
-    for r in result.scalars():
-        print(r.username, r.attribute, r.op, r.value)
-        models.append(
-            RadCheckModel(
-                username=r.username,
-                attribute=r.attribute,
-                op=r.op,
-                value=r.value if r.value else " "
+    # out = TypeAdapter(List[RadCheckModel]).validate_python(result.scalars())
+    for r in result.scalars().all():
+        # print(r.to_dict())
+        # print(RadCheckModel.model_validate(r.to_dict()))
+        try:
+            print(RasdCheckTest.model_validate(r))
+        #     # print(TypeAdapter(RadCheckModel).validate_python(r.to_dict()))
+        #     print(RasdCheckTest.model_validate(r.to_dict()))
+        except:
+            print("error")
+        continue
+        try:
+            print(r.to_dict())
+            models.append(
+                RadCheckModel(
+                    username=r.username,
+                    attribute=r.attribute,
+                    op=r.op,
+                    value=r.value
+                )
             )
-        )
-    print(type(models[0].attribute))
-
+        except:
+            continue
 
 
 #

@@ -32,6 +32,14 @@ class RadCheck(Base):
     attribute = Column(String(64), nullable=False, default='')
     op = Column(CHAR(2), nullable=False, default='==')
     value = Column(String(253), nullable=False, default='')
+
+    def to_dict(self):
+        return self.__dict__
+        print(self.__dict__)
+        # print(self.__table__.columns.keys())
+        # print(self.__table__.columns[0])
+        # print( {k.keys(): v.values() for k, v in list(self.__table__.columns.value)})
+        return {"username": self.username, "attr": self.attribute}
 #
 #
 # class RadAcct(Base):
