@@ -1,25 +1,23 @@
 import datetime
-import typing
 from typing import List
 from pydantic import (
     Field,
     BaseModel,
-    FieldValidationInfo,
-    ValidationError,
     field_validator,
     model_validator
 )
 
 from config import FREERADIUS_EXPIRATION_DATE_FORMAT
 from app.radius import radcheck
+from app.utils.openvpn import OpenVPNConfigFile
 
 
 class User(BaseModel):
     username: str
     password: str
     plan_period: int = Field(gt=0, description="Plan period should be greater than zero.")
-    traffic: int = Field(gt=-1, description="Traffic can be 0 or greater.")
-    max_clients: int
+    traffic: int = Field(gt=-1, description="Traffic can be 0 or greater. 0 means unlimited")  # 0 means unlimited
+    max_clients: int = Field(gt=-1, description="max clients can be 0 or greater. 0 means unlimited")  # 0 means unlimited
 
 
 class UserCreateResponse(BaseModel):
@@ -27,16 +25,22 @@ class UserCreateResponse(BaseModel):
     password: str
     expire: datetime.datetime
     max_clients: int
-    config_file_url: str | None = None
+    config_file_url: str = ""
 
     @model_validator(mode='after')
     def create_link(self):
-        self.config_file_url = "https://google.com"
+        if not self.config_file_url:
+            self.config_file_url = OpenVPNConfigFile(username=self.username, server="s1").download_url()  # TODO: temporary, complete it
         return self
 
     @classmethod
     def load_from_database(cls):
         pass
+
+
+# class UserModify(BaseModel):
+#     username: str
+#     password: str
 
 
 class UserGetResponse(BaseModel):
@@ -49,7 +53,7 @@ class UserGetResponse(BaseModel):
     def convert(cls, models):
         d = dict()
         d.update(username=models[0].username)
-        for model in models:
+        for model in models.radchecks:
             if model.attribute == radcheck.RadiusAttributeType.password:
                 d.update(password=model.value)
 

@@ -1,16 +1,11 @@
 import datetime
-from enum import Enum, auto
-from typing import Any, List, Iterable
+from enum import Enum
+from typing import List
 
 from pydantic import (
-    Field,
     BaseModel,
-    model_validator,
-    ValidationError,
     field_validator,
     FieldValidationInfo,
-    AliasPath,
-    AliasChoices
 )
 
 from config import FREERADIUS_EXPIRATION_DATE_FORMAT
@@ -38,6 +33,7 @@ class RadiusAttributeType(str, Enum):
     password: str = "Cleartext-Password"
     expiration: str = "Expiration"
     simultaneous_use: str = "Simultaneous-Use"
+    monthly_bandwidth = "Monthly-Bandwidth"
 
 
 class PlanPeriodToDatetime:
@@ -78,21 +74,22 @@ class RadiusAttributePair(BaseModel):
     value: str
     op: str = RadiusOperators[':='].value
 
-
     @field_validator("value", mode="before")
     @classmethod
     def check_value(cls, v, info: FieldValidationInfo):
         if info.data['attribute'] == RadiusAttributeType.expiration:
             if isinstance(v, int):
                 return PlanPeriodToDatetime(v).date_str
-                # dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
-                # return dt.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
 
         if info.data['attribute'] == RadiusAttributeType.simultaneous_use:
             return str(v)
 
         if info.data['attribute'] == RadiusAttributeType.password:
             return str(v)
+
+        if info.data['attribute'] == RadiusAttributeType.monthly_bandwidth:
+            return str(v)
+
         return v
 
 
@@ -115,6 +112,9 @@ class RadCheckModels(BaseModel):
         if user.max_clients > 0:
             d.update({RadiusAttributeType.simultaneous_use: RadiusAttributePair(attribute=RadiusAttributeType.simultaneous_use, value=user.max_clients)})
 
+        if user.traffic > 0:
+            d.update({RadiusAttributeType.monthly_bandwidth: RadiusAttributePair(attribute=RadiusAttributeType.monthly_bandwidth, value=user.traffic)})
+
         l = list()
         for v in d.values():
                 l.append(
@@ -135,27 +135,4 @@ class RadCheckModels(BaseModel):
                 )
             )
         return cls(radchecks=l)
-
-
-def get_value_by_attr_type(attr, models: RadCheckModels):
-    for model in models.radchecks:
-        if attr == model.attribute and attr == RadiusAttributeType.expiration:
-            return datetime.datetime.strptime(model.value, FREERADIUS_EXPIRATION_DATE_FORMAT)
-
-        if attr == model.attribute and attr == RadiusAttributeType.simultaneous_use:
-            return int(model.value)
-
-        if attr == model.attribute and attr == RadiusAttributeType.password:
-            return model.value
-
-
-class AttrUpdater:
-    def __init__(self, models):
-        self.models = models
-
-    def update_expiration(self):
-        pass
-
-    def output(self):
-        return self.models
 

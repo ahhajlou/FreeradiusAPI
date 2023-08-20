@@ -1,8 +1,9 @@
 import datetime
 from typing import List
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
+# from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, func, asc, desc, select, and_, func, bindparam, update
+from sqlalchemy import text, func, asc, desc, select, and_, func, bindparam, update, delete
 
 
 from app.database.model import RadCheck, RadAcct
@@ -26,6 +27,7 @@ async def create_user_db(user: User, session: AsyncSession):
         result = await session.execute(stmt)
         if result.scalar() > 0:
             raise UserExists
+
         for radcheck in radchecks_list.radchecks:  # noqa
             session.add(
                 RadCheck(
@@ -40,6 +42,12 @@ async def get_user_db(username: str, session: AsyncSession) -> RadCheckModels:
     return RadCheckModels.load_from_db(result.scalars().all())
 
 
+async def remove_accounting_data(username: str, session: AsyncSession):
+    stmt = delete(RadAcct).where(RadAcct.username == username)
+    await session.execute(stmt)
+    await session.commit()
+
+
 async def renew_user_db(user: UserRenew, session: AsyncSession):
     stmt = select(RadCheck).where(RadCheck.username == user.username)
     result = await session.execute(stmt)
@@ -47,13 +55,15 @@ async def renew_user_db(user: UserRenew, session: AsyncSession):
     if len(radchecks) == 0:
         raise UserNotFoundError
 
+    is_expired = False
+
     for radcheck in radchecks:  # noqa
-        print(radcheck.to_dict())
         if radcheck.attribute == RadiusAttributeType.expiration.value:  # noqa
             _expire_date = FreeradiusStrDatetimeHelper.from_str_to_datetime(radcheck.value)
-            if _expire_date > datetime.datetime.now():
+            if _expire_date > datetime.datetime.now():  # not expired
                 _expire_date += PlanPeriodToDatetime(period=user.plan_period).get_timedelta()
-            else:
+            else:  # expired
+                is_expired = True
                 _expire_date = PlanPeriodToDatetime(period=user.plan_period).date_datetime
 
             radcheck.value = FreeradiusStrDatetimeHelper.from_datetime_to_str(_expire_date)
@@ -62,9 +72,14 @@ async def renew_user_db(user: UserRenew, session: AsyncSession):
             if radcheck.value != user.password:
                 radcheck.value = user.password
 
-        # if radcheck.attribute == RadiusAttributeType.simultaneous_use:
-        #     if radcheck.value != user.max_clients and user.max_clients > 0:
-        #         radcheck.value = user.max_clients
+    for radcheck in radchecks:  # noqa
+        if radcheck.attribute == RadiusAttributeType.monthly_bandwidth.value:  # noqa
+            if is_expired:
+                await remove_accounting_data(username=user.username, session=session)
+                # background_tasks.add_task(remove_accounting_data, username=user.username)
+            else:
+                radcheck.value += user.traffic
+            break
 
     await session.commit()
 
