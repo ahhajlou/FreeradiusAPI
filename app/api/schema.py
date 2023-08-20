@@ -17,8 +17,8 @@ from app.radius import radcheck
 class User(BaseModel):
     username: str
     password: str
-    plan_period: int
-    traffic: int = Field(gt=-1, description="traffic can be 0 or greater")
+    plan_period: int = Field(gt=0, description="Plan period should be greater than zero.")
+    traffic: int = Field(gt=-1, description="Traffic can be 0 or greater.")
     max_clients: int
 
 

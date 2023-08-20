@@ -35,11 +35,6 @@ class RadCheck(Base):
 
     def to_dict(self):
         return self.__dict__
-        print(self.__dict__)
-        # print(self.__table__.columns.keys())
-        # print(self.__table__.columns[0])
-        # print( {k.keys(): v.values() for k, v in list(self.__table__.columns.value)})
-        return {"username": self.username, "attr": self.attribute}
 
 
 class RadAcct(Base):

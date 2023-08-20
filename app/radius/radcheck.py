@@ -40,6 +40,39 @@ class RadiusAttributeType(str, Enum):
     simultaneous_use: str = "Simultaneous-Use"
 
 
+class PlanPeriodToDatetime:
+    def __init__(self, period: int):
+        if not isinstance(period, int):
+            raise ValueError("Input parameter is not int.")
+        self._period = period
+        self._date = datetime.datetime.now() + datetime.timedelta(days=period)
+
+    @property
+    def date_str(self) -> str:
+        return self._date.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
+
+    @property
+    def date_datetime(self) -> datetime.datetime:
+        return self._date
+
+    def get_timedelta(self) -> datetime.timedelta:
+        return datetime.timedelta(days=self._period)
+
+
+class FreeradiusStrDatetimeHelper:
+    @staticmethod
+    def from_str_to_datetime(date_str: str) -> datetime.datetime:
+        if not isinstance(date_str, str):
+            raise ValueError("The date is not str.")
+        return datetime.datetime.strptime(date_str, FREERADIUS_EXPIRATION_DATE_FORMAT)
+
+    @staticmethod
+    def from_datetime_to_str(date_datetime: datetime.datetime) -> str:
+        if not isinstance(date_datetime, datetime.datetime):
+            raise ValueError("The date is not datetime.")
+        return date_datetime.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
+
+
 class RadiusAttributePair(BaseModel):
     attribute: str
     value: str
@@ -50,9 +83,10 @@ class RadiusAttributePair(BaseModel):
     @classmethod
     def check_value(cls, v, info: FieldValidationInfo):
         if info.data['attribute'] == RadiusAttributeType.expiration:
-            if isinstance(v, datetime.datetime):
-                dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
-                return dt.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
+            if isinstance(v, int):
+                return PlanPeriodToDatetime(v).date_str
+                # dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
+                # return dt.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
 
         if info.data['attribute'] == RadiusAttributeType.simultaneous_use:
             return str(v)
@@ -71,11 +105,6 @@ class RadCheckModel(BaseModel):
 
 class RadCheckModels(BaseModel):
     radchecks: List[RadCheckModel]
-
-    def salam(self, objs: List):
-        l = list()
-        for obj in objs:
-               l.append(RadCheckModel(obj.to_dict()))
 
     @classmethod
     def create_radchecks_model(cls, user):
@@ -106,4 +135,26 @@ class RadCheckModels(BaseModel):
                 )
             )
         return cls(radchecks=l)
+
+def get_value_by_attr_type(attr, models: RadCheckModels):
+    for model in models.radchecks:
+        if attr == model.attribute and attr == RadiusAttributeType.expiration:
+            return datetime.datetime.strptime(model.value, FREERADIUS_EXPIRATION_DATE_FORMAT)
+
+        if attr == model.attribute and attr == RadiusAttributeType.simultaneous_use:
+            return int(model.value)
+
+        if attr == model.attribute and attr == RadiusAttributeType.password:
+            return model.value
+
+
+class AttrUpdater:
+    def __init__(self, models):
+        self.models = models
+
+    def update_expiration(self):
+        pass
+
+    def output(self):
+        return self.models
 
