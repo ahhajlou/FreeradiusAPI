@@ -15,8 +15,17 @@ class GetSessionDB:  # Async context manager
         # for AsyncEngine created in function scope, close and
         # clean-up pooled connections
         await engine.dispose()
+    @staticmethod
+    async def create_all():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
 
-def get_db():  # for fastapi "Depends"
-    with GetSessionDB() as db:
+async def get_db():  # for fastapi "Depends"
+    # db = async_session()
+    # try:
+    #     yield db
+    # finally:
+    #     await db.close()
+    async with GetSessionDB() as db:
         yield db

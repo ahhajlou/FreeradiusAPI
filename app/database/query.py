@@ -1,98 +1,101 @@
-from enum import Enum
-from pydantic import BaseModel
-from sqlalchemy import text, func, asc, desc, select, and_, func
+import datetime
+from typing import List
+from pydantic import BaseModel, TypeAdapter
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, func, asc, desc, select, and_, func, bindparam, update
 
-from . import GetSessionDB
+
 from app.database.model import RadCheck, RadAcct
-from app.api.model import User, UserUsage
+from app.api.schema import User, UserUsage, DailyUsage, DetailsUsage, UserRenew
+from app.radius.radcheck import RadCheckModels, RadiusAttributeType, PlanPeriodToDatetime, FreeradiusStrDatetimeHelper
 
 
-async def query_download_daily(user: User):
-    with GetSessionDB() as session:
-        stmt = select(
-                RadAcct.acctstarttime, 
-                func.sum(RadAcct.acctoutputoctets).label('downloads'),
-            ).where(
-                and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-            ).group_by(
-                func.day(RadAcct.acctstarttime)
-            ).order_by(
-                desc(RadAcct.acctstarttime)
+class UserExists(Exception):
+    pass
+
+
+class UserNotFoundError(Exception):
+    pass
+
+
+async def create_user_db(user: User, session: AsyncSession):
+    radchecks_list = RadCheckModels.create_radchecks_model(user=user)  # noqa
+    stmt = select(func.count()).where(RadCheck.username == user.username)
+
+    async with session.begin():
+        result = await session.execute(stmt)
+        if result.scalar() > 0:
+            raise UserExists
+        for radcheck in radchecks_list.radchecks:  # noqa
+            session.add(
+                RadCheck(
+                    **radcheck.model_dump()
+                )
             )
-        
-        result = await session.execute(stmt)
 
 
-async def query_upload_daily(user: User):
-    with GetSessionDB() as session:
-        stmt = select(
-                RadAcct.acctstarttime,
-                func.sum(RadAcct.acctinputoctets).label('upload')
-            ).where(
-                and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-            ).group_by(
-                func.day(RadAcct.acctstarttime)
-            ).order_by(
-                desc(RadAcct.acctstarttime)
-            )
-        
-        result = await session.execute(stmt)
+async def get_user_db(username: str, session: AsyncSession) -> RadCheckModels:
+    stmt = select(RadCheck).where(RadCheck.username == username)
+    result = await session.execute(stmt)
+    return RadCheckModels.load_from_db(result.scalars().all())
 
 
-async def total(user: User):
-    with GetSessionDB() as session:
-        subq = select(
-                func.sum(RadAcct.acctoutputoctets).label('downloads'),
-                func.sum(RadAcct.acctinputoctets).label('uploads')
-            ).where(
-                and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-            ).subquery()
-        
-        stmt = select(func.sum(subq.c.downloads), func.sum(subq.c.uploads))
-        result = await session.execute(stmt)
-        return result.scalar_one()
+async def renew_user_db(user: UserRenew, session: AsyncSession):
+    stmt = select(RadCheck).where(RadCheck.username == user.username)
+    result = await session.execute(stmt)
+    radchecks = result.scalars().all()  # noqa
+    if len(radchecks) == 0:
+        raise UserNotFoundError
+
+    for radcheck in radchecks:  # noqa
+        print(radcheck.to_dict())
+        if radcheck.attribute == RadiusAttributeType.expiration.value:  # noqa
+            _expire_date = FreeradiusStrDatetimeHelper.from_str_to_datetime(radcheck.value)
+            if _expire_date > datetime.datetime.now():
+                _expire_date += PlanPeriodToDatetime(period=user.plan_period).get_timedelta()
+            else:
+                _expire_date = PlanPeriodToDatetime(period=user.plan_period).date_datetime
+
+            radcheck.value = FreeradiusStrDatetimeHelper.from_datetime_to_str(_expire_date)
+
+        if radcheck.attribute == RadiusAttributeType.password:
+            if radcheck.value != user.password:
+                radcheck.value = user.password
+
+        # if radcheck.attribute == RadiusAttributeType.simultaneous_use:
+        #     if radcheck.value != user.max_clients and user.max_clients > 0:
+        #         radcheck.value = user.max_clients
+
+    await session.commit()
 
 
-class UsageType(str, Enum):
-    download: str = "download"
-    upload: str = "upload"
-    total: str = "total"
+async def query_download_upload_daily(username: str, session: AsyncSession) -> DetailsUsage:
+    stmt = select(
+            RadAcct.acctstarttime.label('date'),
+            func.sum(RadAcct.acctinputoctets).label('uploads'),
+            func.sum(RadAcct.acctoutputoctets).label('downloads'),
+        ).where(
+            and_(RadAcct.username == username, RadAcct.acctstoptime > 0)
+        ).group_by(
+            func.day(RadAcct.acctstarttime)
+        ).order_by(
+            desc(RadAcct.acctstarttime)
+        )
+
+    result = await session.execute(stmt)
+
+    daily_usages = TypeAdapter(List[DailyUsage]).validate_python(list(map(lambda v: v._mapping, result))) # noqa
+    return DetailsUsage(usages=daily_usages)
 
 
-class ColumnSelect(Enum):
-    downloads = RadAcct.acctoutputoctets
-    uploads = RadAcct.acctinputoctets
+async def total_usage(username: str, session: AsyncSession) -> UserUsage:
+    subq = select(
+            func.sum(RadAcct.acctoutputoctets).label('downloads'),
+            func.sum(RadAcct.acctinputoctets).label('uploads')
+        ).where(
+            and_(RadAcct.username == username, RadAcct.acctstoptime > 0)
+        ).subquery()
 
-
-class CalculateUsageAll:
-    def __init__(self):
-        pass
-
-    def test(self, user: User):
-        with GetSessionDB()as session:
-            subq = select(
-                    func.sum(RadAcct.acctoutputoctets).label('downloads'),
-                    func.sum(RadAcct.acctinputoctets).label('uploads')
-                ).where(
-                    and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-                ).subquery()
-
-            stmt = select(func.sum(subq.c.downloads).label('download'), func.sum(subq.c.uploads).label('upload'))
-            result = await session.scalars(stmt).first()
-
-            return UserUsage(**result._mapping)
-            #return result.scalar()
-            #return result.scalar_one()
-            #return result.scalar()
-
-    def upload(self):
-        pass
-
-    def download(self):
-        pass
-
-    def total(self):
-        pass
-
-    async def exec(self):
-        result = UserUsage()
+    stmt = select(func.sum(subq.c.downloads).label('download'), func.sum(subq.c.uploads).label('upload'))
+    result = await session.execute(stmt)
+    return UserUsage(**result.one()._mapping)  # noqa

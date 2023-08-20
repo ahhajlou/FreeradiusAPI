@@ -26,12 +26,15 @@ class OpenVPNServer(Base):
 
 class RadCheck(Base):
     __tablename__ = "radcheck"
-    
+
     id = Column(INTEGER(11, unsigned=True), primary_key=True, autoincrement=True, nullable=False)
-    username = Column(String(64), nullable=False, default='')
+    username = Column(String(64), nullable=False, default='', unique=False)
     attribute = Column(String(64), nullable=False, default='')
     op = Column(CHAR(2), nullable=False, default='==')
     value = Column(String(253), nullable=False, default='')
+
+    def to_dict(self):
+        return self.__dict__
 
 
 class RadAcct(Base):
