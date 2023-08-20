@@ -6,15 +6,13 @@ from sqlalchemy import text, func, asc, desc, select, and_, func
 
 from . import GetSessionDB
 
-from app.database.model import RadCheck
-from app.api.model import User, UserGetResponse
+from app.database.model import RadCheck, RadAcct
+from app.api.model import User, UserGetResponse, UserUsage, DailyUsage, DetailsUsage
 from app.radius.radcheck import RadCheckModel, RadCheckModels
 
 
 async def create_user_db(user: User, session: AsyncSession):
-    # radchecks_list = GenerateRadCheckModels(user=user)
-    # radchecks_list.gen()
-    radchecks_list = RadCheckModels.dmp(user=user)
+    radchecks_list = RadCheckModels.create_radchecks_model(user=user)
 
     async with session.begin():
         print(radchecks_list)
@@ -27,41 +25,40 @@ async def create_user_db(user: User, session: AsyncSession):
             )
 
 
-async def get_user_db(username: str, session: AsyncSession):
+async def get_user_db(username: str, session: AsyncSession) -> RadCheckModels:
     stmt = select(RadCheck).where(RadCheck.username == username)
     result = await session.execute(stmt)
-    model = RadCheckModels.model_validate(from_attributes=True)
-    print(RasdCheckTest.model_validate(result.scalars().all()))
-    pass
-
-    models = []
-    # out = TypeAdapter(List[RadCheckModel]).validate_python(result.scalars())
-    for r in result.scalars().all():
-        # print(r.to_dict())
-        # print(RadCheckModel.model_validate(r.to_dict()))
-            print(RasdCheckTest.model_validate(r))
-        #     # print(TypeAdapter(RadCheckModel).validate_python(r.to_dict()))
-        #     print(RasdCheckTest.model_validate(r.to_dict()))
-
+    models = RadCheckModels.load_from_db(result.scalars().all())
+    return models
 
 
 #
-# async def query_download_daily(user: User):
-#     asyncwith GetSessionDB() as session:
-#         stmt = select(
-#                 RadAcct.acctstarttime,
-#                 func.sum(RadAcct.acctoutputoctets).label('downloads'),
-#             ).where(
-#                 and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-#             ).group_by(
-#                 func.day(RadAcct.acctstarttime)
-#             ).order_by(
-#                 desc(RadAcct.acctstarttime)
-#             )
-#
-#         result = await session.execute(stmt)
-#
-#
+async def query_download_upload_daily(username: str, session: AsyncSession):
+    stmt = select(
+            RadAcct.acctstarttime.label('date'),
+            func.sum(RadAcct.acctinputoctets).label('uploads'),
+            func.sum(RadAcct.acctoutputoctets).label('downloads'),
+        ).where(
+            and_(RadAcct.username == username, RadAcct.acctstoptime > 0)
+        ).group_by(
+            func.day(RadAcct.acctstarttime)
+        ).order_by(
+            desc(RadAcct.acctstarttime)
+        )
+
+    result = await session.execute(stmt)
+
+    # FIRST METHOD
+    daily_usages = TypeAdapter(List[DailyUsage]).validate_python(list(map(lambda v: v._mapping, result)))
+    detail_usages = DetailsUsage(usages=daily_usages)
+
+    # SECOND METHOD
+    DetailsUsage(usages=list(map(lambda v: DailyUsage.model_validate(v._mapping), result)))
+
+    return TypeAdapter(List[DailyUsage]).validate_python(list(map(lambda v: v._mapping, result)))
+    # TypeAdapter(List[DailyUsage]).dump_python()
+
+
 # async def query_upload_daily(user: User):
 #     with GetSessionDB() as session:
 #         stmt = select(
@@ -78,18 +75,17 @@ async def get_user_db(username: str, session: AsyncSession):
 #         result = await session.execute(stmt)
 #
 #
-# async def total(user: User):
-#     with GetSessionDB() as session:
-#         subq = select(
-#                 func.sum(RadAcct.acctoutputoctets).label('downloads'),
-#                 func.sum(RadAcct.acctinputoctets).label('uploads')
-#             ).where(
-#                 and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-#             ).subquery()
-#
-#         stmt = select(func.sum(subq.c.downloads), func.sum(subq.c.uploads))
-#         result = await session.execute(stmt)
-#         return result.scalar_one()
+async def total_usage(username: str, session: AsyncSession) -> UserUsage:
+    subq = select(
+            func.sum(RadAcct.acctoutputoctets).label('downloads'),
+            func.sum(RadAcct.acctinputoctets).label('uploads')
+        ).where(
+            and_(RadAcct.username == username, RadAcct.acctstoptime > 0)
+        ).subquery()
+
+    stmt = select(func.sum(subq.c.downloads).label('download'), func.sum(subq.c.uploads).label('upload'))
+    result = await session.execute(stmt)
+    return UserUsage(**result.one()._mapping)
 #
 #
 # class UsageType(str, Enum):
@@ -102,36 +98,4 @@ async def get_user_db(username: str, session: AsyncSession):
 #     downloads = RadAcct.acctoutputoctets
 #     uploads = RadAcct.acctinputoctets
 #
-#
-# class CalculateUsageAll:
-#     def __init__(self):
-#         pass
-#
-#     def test(self, user: User):
-#         with GetSessionDB()as session:
-#             subq = select(
-#                     func.sum(RadAcct.acctoutputoctets).label('downloads'),
-#                     func.sum(RadAcct.acctinputoctets).label('uploads')
-#                 ).where(
-#                     and_(RadAcct.username==user.username, RadAcct.acctstoptime > 0)
-#                 ).subquery()
-#
-#             stmt = select(func.sum(subq.c.downloads).label('download'), func.sum(subq.c.uploads).label('upload'))
-#             result = await session.scalars(stmt).first()
-#
-#             return UserUsage(**result._mapping)
-#             #return result.scalar()
-#             #return result.scalar_one()
-#             #return result.scalar()
-#
-#     def upload(self):
-#         pass
-#
-#     def download(self):
-#         pass
-#
-#     def total(self):
-#         pass
-#
-#     async def exec(self):
-#         result = UserUsage()
+

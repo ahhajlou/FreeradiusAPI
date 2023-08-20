@@ -10,41 +10,23 @@ from pydantic import (
     model_validator
 )
 
+from config import FREERADIUS_EXPIRATION_DATE_FORMAT
 from app.radius import radcheck
 
 
 class User(BaseModel):
     username: str
-    password: typing.Annotated[str, radcheck.RadiusAttributeType.password]
-    plan_period: typing.Annotated[int, radcheck.RadiusAttributeType.expiration]
+    password: str
+    plan_period: int
     traffic: int = Field(gt=-1, description="traffic can be 0 or greater")
-    max_clients: typing.Annotated[int, radcheck.RadiusAttributeType.simultaneous_use]
-
-    def get_field_by_annotated_type(self, tp):
-        print(self.__annotations__.items())
-        for k, v in self.__annotations__.items():
-            print(f"{k} --- {v}")
-            try:
-                if tp == typing.get_args(v)[1]:
-                    print("Dumped model::::::", self.model_dump(), '-f-f-f', typing.get_args(v), " - ", k)
-                    return self.model_dump()[k]
-            except IndexError:
-                continue
-        print("%%%%_______%%%%%")
-
-    # @field_validator("expire", mode="after")
-    # @classmethod
-    # def username_valid(cls, v: int, info: FieldValidationInfo) -> datetime.datetime:
-    #     if isinstance(v, datetime.datetime):
-    #         return v
-    #     return datetime.datetime.now() + datetime.timedelta(days=v)
+    max_clients: int
 
 
 class UserCreateResponse(BaseModel):
     username: str
     password: str
     expire: datetime.datetime
-    limit: int
+    max_clients: int
     config_file_url: str | None = None
 
     @model_validator(mode='after')
@@ -52,39 +34,51 @@ class UserCreateResponse(BaseModel):
         self.config_file_url = "https://google.com"
         return self
 
+    @classmethod
+    def load_from_database(cls):
+        pass
+
 
 class UserGetResponse(BaseModel):
     username: str
     password: str
     expire: datetime.datetime
-    limit: int
+    max_clients: int
+
+    @classmethod
+    def convert(cls, models):
+        d = dict()
+        d.update(username=models[0].username)
+        for model in models:
+            if model.attribute == radcheck.RadiusAttributeType.password:
+                d.update(password=model.value)
+
+            if model.attribute == radcheck.RadiusAttributeType.expiration:
+                d.update(expire=datetime.datetime.strptime(model.value, FREERADIUS_EXPIRATION_DATE_FORMAT))
+
+            if model.attribute == radcheck.RadiusAttributeType.simultaneous_use:
+                d.update(max_clients=model.value)
+
+        return cls.model_validate(d)
 
 
-# class Download(BaseModel):
-#     download: int
-#
-#
-# class Upload(BaseModel):
-#     upload: int
-#
-#
-# class DailyUsage(BaseModel):
-#     upload: Download
-#     download: Download
-#     date: datetime
-#
-#
-# class DetailsUsage(BaseModel):
-#     usage: List[DailyUsage]
-#
-#
-# class UserUsage(BaseModel):  # store user' download and upload usage
-#     download: int
-#     upload: int
-#
-#     @field_validator("*", mode="before")  # the value may be 0 if the user has not connected yet
-#     @classmethod
-#     def convert_to_zero(cls, v: int | None) -> int:
-#         if v is None:
-#             return 0
-#         return v
+class DailyUsage(BaseModel):
+    uploads: int
+    downloads: int
+    date: datetime.datetime
+
+
+class DetailsUsage(BaseModel):
+    usages: List[DailyUsage]
+
+
+class UserUsage(BaseModel):  # store user' download and upload usage
+    download: int
+    upload: int
+
+    @field_validator("*", mode="before")  # the value may be 0 if the user has not connected yet
+    @classmethod
+    def convert_to_zero(cls, v: int | None) -> int:
+        if v is None:
+            return 0
+        return v

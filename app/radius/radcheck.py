@@ -13,13 +13,7 @@ from pydantic import (
     AliasChoices
 )
 
-# from app.api import model
-import typing
-
-
-Date = typing.TypeVar("Date")
-Limit = typing.TypeVar("Limit")
-# GEN = typing.TypeVar("GEN", Date, Limit)
+from config import FREERADIUS_EXPIRATION_DATE_FORMAT
 
 RadiusOperators = Enum(
     "RadiusOperators", {
@@ -54,42 +48,18 @@ class RadiusAttributePair(BaseModel):
 
     @field_validator("value", mode="before")
     @classmethod
-    def check_values(cls, v: Any, info: FieldValidationInfo):
-        if info.data['attribute'] == RadiusAttributeType.expiration.value:
-            dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
-            return dt.strftime('%Y-%m-%d')
+    def check_value(cls, v, info: FieldValidationInfo):
+        if info.data['attribute'] == RadiusAttributeType.expiration:
+            if isinstance(v, datetime.datetime):
+                dt = datetime.datetime.now() + datetime.timedelta(days=int(v))
+                return dt.strftime(FREERADIUS_EXPIRATION_DATE_FORMAT)
+
+        if info.data['attribute'] == RadiusAttributeType.simultaneous_use:
+            return str(v)
+
+        if info.data['attribute'] == RadiusAttributeType.password:
+            return str(v)
         return v
-
-    # @field_validator("attribute", mode="before")
-    # @classmethod
-    # def atrribute_from_db(cls, v: str):
-    #     if not isinstance(v, (str, RadiusAttributeType)):
-    #         raise ValueError("attribute should be either RadiusAttributeType or str.")
-    #     if isinstance(v, str):
-    #         return RadiusAttributeType(v)
-    #     return v
-
-    @model_validator(mode="after")
-    def check_all(self):
-        if self.attribute == RadiusAttributeType.password:
-            self.value = RadiusAttributeType.password.value
-
-        # if self.attribute == RadiusAttributeType.expiration:
-        #     self.value = (datetime.datetime.now() + datetime.timedelta(days=int(self.value))).strftime('%Y-%m-%d')
-            # if isinstance(self.value, datetime.datetime):
-            #     self.value = self.value.strftime('%Y-%m-%d')
-            # else:
-            #     self.value = datetime.datetime.strptime(self.value, '%Y-%m-%d')
-
-
-    # @field_validator("op", mode="after")
-    # @classmethod
-    # def attribute_convertor(cls, v: RadiusOperators | str, info: FieldValidationInfo):
-    #     return ":="
-    #     if isinstance(v, str):
-    #         return RadiusOperators(v)
-    #     else:
-    #         return v.value
 
 
 class RadCheckModel(BaseModel):
@@ -106,22 +76,34 @@ class RadCheckModels(BaseModel):
         l = list()
         for obj in objs:
                l.append(RadCheckModel(obj.to_dict()))
+
     @classmethod
-    def dmp(cls, user):
+    def create_radchecks_model(cls, user):
+        d = {
+            RadiusAttributeType.password: RadiusAttributePair(attribute=RadiusAttributeType.password, value=user.password),
+            RadiusAttributeType.expiration: RadiusAttributePair(attribute=RadiusAttributeType.expiration, value=user.plan_period),
+        }
+        if user.max_clients > 0:
+            d.update({RadiusAttributeType.simultaneous_use: RadiusAttributePair(attribute=RadiusAttributeType.simultaneous_use, value=user.max_clients)})
+
         l = list()
-        for attr in RadiusAttributeType:
-            print(attr)
-            if value := user.get_field_by_annotated_type(attr):
-                print(True)
+        for v in d.values():
                 l.append(
                     RadCheckModel(
                         username=user.username,
-                        **RadiusAttributePair(
-                            attribute=attr.value,
-                            value=value,
-                        ).model_dump()
+                        **v.model_dump()
                     )
                 )
-        print(l)
+        return cls(radchecks=l)
+
+    @classmethod
+    def load_from_db(cls, objs):
+        l = list()
+        for obj in objs:
+            l.append(
+                RadCheckModel(
+                    **obj.to_dict()
+                )
+            )
         return cls(radchecks=l)
 
