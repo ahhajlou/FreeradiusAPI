@@ -1,20 +1,43 @@
-version: '3'
+version: '3.8'
 
 services:
   fastapi:
     image: freeradius-api
     container_name: fastapi
 
-    volumes:
-      - C:\Users\Notebook\Github\FreeradiusAPI\app:/code/app
-      - C:\Users\Notebook\Github\FreeradiusAPI\api.db:/code/api.db
+#    volumes:
+#      - C:\Users\Notebook\Github\FreeradiusAPI\app:/code/app
+#      - C:\Users\Notebook\Github\FreeradiusAPI\api.db:/code/api.db
 
     ports:
       - '8000:8000'
 
-    networks:
-      - vpn-telegram-bot_my_network
+#    networks:
+#      - vpn-telegram-bot_my_network
 
-networks:
-  vpn-telegram-bot_my_network:
-    external: true
+    depends_on:
+      - caddy
+
+  caddy:
+    image: caddy
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_volume:/data
+      - caddy_volume:/config
+
+    environment:
+      PROXY_BACKEND: fastapi
+      PROXY_PORT: 8000
+      DOMAIN: ${DOMAIN}
+
+
+volumes:
+  caddy_volume:
+
+#networks:
+#  vpn-telegram-bot_my_network:
+#    external: true
