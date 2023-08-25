@@ -56,6 +56,8 @@ async def renew_user(user: UserRenew, db: AsyncSession = Depends(get_db)):
 @app.get("/user/{username}/get")
 async def get_user(username: str, db: AsyncSession = Depends(get_db)):
     result = await get_user_db(username, db)
+    if len(result.radchecks) == 0:
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="User not found in database.")
     return UserGetResponse.convert(result)
 
 
