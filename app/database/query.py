@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, func, asc, desc, select, and_, func, bindparam, update, delete
 
 
-from app.database.model import RadCheck, RadAcct
+from app.database.model import RadCheck, RadAcct, OpenVPNServer
 from app.api.schema import User, UserUsage, DailyUsage, DetailsUsage, UserRenew
 from app.radius.radcheck import RadCheckModels, RadiusAttributeType, PlanPeriodToDatetime, FreeradiusStrDatetimeHelper
 
@@ -115,3 +115,10 @@ async def total_usage(username: str, session: AsyncSession) -> UserUsage:
     stmt = select(func.sum(subq.c.downloads).label('download'), func.sum(subq.c.uploads).label('upload'))
     result = await session.execute(stmt)
     return UserUsage(**result.one()._mapping)  # noqa
+
+
+async def get_server_by_ip(ip: str, session: AsyncSession) -> OpenVPNServer:
+    stmt = select(OpenVPNServer).where(OpenVPNServer.ip == ip)
+    result = await session.execute(stmt)
+    openvpn_server = result.scalar_one()
+    return openvpn_server

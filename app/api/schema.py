@@ -18,6 +18,7 @@ class User(BaseModel):
     plan_period: int = Field(gt=0, description="Plan period should be greater than zero.")
     traffic: int = Field(gt=-1, description="Traffic can be 0 or greater. 0 means unlimited")  # 0 means unlimited
     max_clients: int = Field(gt=-1, description="max clients can be 0 or greater. 0 means unlimited")  # 0 means unlimited
+    server_ip_address: str
 
 
 class UserCreateResponse(BaseModel):
@@ -25,6 +26,7 @@ class UserCreateResponse(BaseModel):
     password: str
     expire: datetime.datetime
     max_clients: int
+    server_ip_address: str
     config_file_url: str = ""
 
     @model_validator(mode='after')
@@ -93,7 +95,7 @@ class UserUsage(BaseModel):  # store user download and upload usage
     download: int
     upload: int
 
-    @field_validator("*", mode="before")  # the value may be 0 if the user has not connected yet
+    @field_validator("*", mode="before")  # the value may be 0 if the user has not connected yet  # noqa
     @classmethod
     def convert_to_zero(cls, v: int | None) -> int:
         if v is None:

@@ -1,5 +1,6 @@
 import enum
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR, Enum, Text
+import uuid
+from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR, Enum, Text, Uuid
 from sqlalchemy.dialects.mysql import VARCHAR, INTEGER, BIGINT, DATETIME
 
 from .base import Base
@@ -15,8 +16,7 @@ class OpenVPNProtocol(str, enum.Enum):
 class OpenVPNServer(Base):
     __tablename__ = "openvpn_servers"
 
-    id = Column(Integer, primary_key=True)
-    ip = Column(String(255))
+    ip = Column(String(255), primary_key=True, nullable=False, unique=True, index=True)
     port = Column(Integer)
     protocol = Column(Enum(OpenVPNProtocol), default=OpenVPNProtocol.tcp4)
     x509_name = Column(String(255))

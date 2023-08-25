@@ -34,6 +34,7 @@ class RadiusAttributeType(str, Enum):
     expiration: str = "Expiration"
     simultaneous_use: str = "Simultaneous-Use"
     monthly_bandwidth = "Monthly-Bandwidth"
+    nas_ip_address = "NAS-IP-Address"
 
 
 class PlanPeriodToDatetime:
@@ -74,7 +75,7 @@ class RadiusAttributePair(BaseModel):
     value: str
     op: str = RadiusOperators[':='].value
 
-    @field_validator("value", mode="before")
+    @field_validator("value", mode="before")  # noqa
     @classmethod
     def check_value(cls, v, info: FieldValidationInfo):
         if info.data['attribute'] == RadiusAttributeType.expiration:
@@ -88,6 +89,9 @@ class RadiusAttributePair(BaseModel):
             return str(v)
 
         if info.data['attribute'] == RadiusAttributeType.monthly_bandwidth:
+            return str(v)
+
+        if info.data['attribute'] == RadiusAttributeType.nas_ip_address:
             return str(v)
 
         return v
@@ -106,14 +110,25 @@ class RadCheckModels(BaseModel):
     @classmethod
     def create_radchecks_model(cls, user):
         d = {
-            RadiusAttributeType.password: RadiusAttributePair(attribute=RadiusAttributeType.password, value=user.password),
-            RadiusAttributeType.expiration: RadiusAttributePair(attribute=RadiusAttributeType.expiration, value=user.plan_period),
+            RadiusAttributeType.password: RadiusAttributePair(attribute=RadiusAttributeType.password,
+                                                              value=user.password),
+            RadiusAttributeType.expiration: RadiusAttributePair(attribute=RadiusAttributeType.expiration,
+                                                                value=user.plan_period),
+            RadiusAttributeType.nas_ip_address: RadiusAttributePair(attribute=RadiusAttributeType.nas_ip_address,
+                                                                    value=user.server_ip_address)
         }
         if user.max_clients > 0:
-            d.update({RadiusAttributeType.simultaneous_use: RadiusAttributePair(attribute=RadiusAttributeType.simultaneous_use, value=user.max_clients)})
+            d.update(
+                {
+                    RadiusAttributeType.simultaneous_use: RadiusAttributePair(
+                        attribute=RadiusAttributeType.simultaneous_use,
+                        value=user.max_clients)
+                }
+            )
 
         if user.traffic > 0:
-            d.update({RadiusAttributeType.monthly_bandwidth: RadiusAttributePair(attribute=RadiusAttributeType.monthly_bandwidth, value=user.traffic)})
+            d.update({RadiusAttributeType.monthly_bandwidth: RadiusAttributePair(
+                attribute=RadiusAttributeType.monthly_bandwidth, value=user.traffic)})
 
         l = list()
         for v in d.values():
