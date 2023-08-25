@@ -25,7 +25,7 @@ from app.database.query import (
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
-async def create_user(user: User, db: AsyncSession = Depends(get_db)):
+async def create_user(user: User, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     """
     Create a user
     - **username** str
@@ -41,12 +41,12 @@ async def create_user(user: User, db: AsyncSession = Depends(get_db)):
 
 
 @app.put("/user")
-async def update_user(user: User, db: AsyncSession = Depends(get_db)):
+async def update_user(user: User, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     pass
 
 
 @app.post("/user/renew")
-async def renew_user(user: UserRenew, db: AsyncSession = Depends(get_db)):
+async def renew_user(user: UserRenew, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     try:
         await renew_user_db(user, db)
     except UserNotFoundError:
@@ -54,7 +54,7 @@ async def renew_user(user: UserRenew, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/user/{username}/get")
-async def get_user(username: str, db: AsyncSession = Depends(get_db)):
+async def get_user(username: str, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     result = await get_user_db(username, db)
     if len(result.radchecks) == 0:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="User not found in database.")
@@ -62,18 +62,18 @@ async def get_user(username: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/stats/{username}/overall", response_model=UserUsage)
-async def overall_stats(username: str, db: AsyncSession = Depends(get_db)):
+async def overall_stats(username: str, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     return await total_usage(username=username, session=db)
 
 
 @app.get("/stats/{username}/details", response_model=DetailsUsage)
-async def details_stats(username: str, db: AsyncSession = Depends(get_db)):
+async def details_stats(username: str, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     usages = await query_download_upload_daily(username=username, session=db)
     return usages
 
 
 @app.post("/stats/{username}/reset")
-async def reset_stats(username: str, db: AsyncSession = Depends(get_db)):
+async def reset_stats(username: str, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
     await remove_accounting_data(username, db)
 
 
