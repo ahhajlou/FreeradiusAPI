@@ -48,11 +48,18 @@ class UserGetResponse(BaseModel):
     password: str
     expire: datetime.datetime
     max_clients: int
+    config_file_url: str = ""
+
+    @model_validator(mode='after')
+    def create_link(self):
+        if not self.config_file_url:
+            self.config_file_url = OpenVPNConfigFile(username=self.username, server="s1").download_url()  # TODO: temporary, complete it
+        return self
 
     @classmethod
     def convert(cls, models):
         d = dict()
-        d.update(username=models[0].username)
+        d.update(username=models.radchecks[0].username)
         for model in models.radchecks:
             if model.attribute == radcheck.RadiusAttributeType.password:
                 d.update(password=model.value)
@@ -82,7 +89,7 @@ class DetailsUsage(BaseModel):
     usages: List[DailyUsage]
 
 
-class UserUsage(BaseModel):  # store user' download and upload usage
+class UserUsage(BaseModel):  # store user download and upload usage
     download: int
     upload: int
 

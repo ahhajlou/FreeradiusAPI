@@ -39,7 +39,8 @@ async def create_user_db(user: User, session: AsyncSession):
 async def get_user_db(username: str, session: AsyncSession) -> RadCheckModels:
     stmt = select(RadCheck).where(RadCheck.username == username)
     result = await session.execute(stmt)
-    return RadCheckModels.load_from_db(result.scalars().all())
+    radchecks = result.scalars().all()
+    return RadCheckModels.load_from_db(radchecks)
 
 
 async def remove_accounting_data(username: str, session: AsyncSession):

@@ -2,6 +2,19 @@ version: '3'
 
 services:
   fastapi:
+    image: freeradius-api
     container_name: fastapi
+
+    volumes:
+      - C:\Users\Notebook\Github\FreeradiusAPI\app:/code/app
+      - C:\Users\Notebook\Github\FreeradiusAPI\api.db:/code/api.db
+
     ports:
-      - 8000:8000
+      - '8000:8000'
+
+    networks:
+      - vpn-telegram-bot_my_network
+
+networks:
+  vpn-telegram-bot_my_network:
+    external: true
