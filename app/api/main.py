@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 
 
 from app import app
+from app.radius import radcheck
 from app.utils.openvpn import OpenVPNConfigFile
 from .schema import User, UserCreateResponse, UserGetResponse, UserUsage, UserRenew, DetailsUsage
 from app.database import get_db, AsyncSession, GetSessionDB
@@ -37,7 +38,8 @@ async def create_user(user: User, db: AsyncSession = Depends(get_db), api_key: s
     except UserExists:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User exists.")
 
-    return UserCreateResponse(**user.model_dump(), expire=datetime.datetime.now())
+    expire_date = radcheck.PlanPeriodToDatetime(user.plan_period).date_datetime
+    return UserCreateResponse(**user.model_dump(), expire=expire_date)
 
 
 @app.put("/user")
