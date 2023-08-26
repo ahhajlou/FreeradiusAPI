@@ -5,6 +5,7 @@ from typing import List
 from pydantic import (
     BaseModel,
     field_validator,
+    model_validator,
     FieldValidationInfo,
 )
 
@@ -95,6 +96,11 @@ class RadiusAttributePair(BaseModel):
             return str(v)
 
         return v
+
+    @model_validator(mode='after')
+    def replace_operator(self):
+        if self.attribute == RadiusAttributeType.nas_ip_address:
+            self.op = RadiusOperators['=='].value
 
 
 class RadCheckModel(BaseModel):
