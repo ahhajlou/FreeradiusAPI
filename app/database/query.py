@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, func, asc, desc, select, and_, func, bindparam, update, delete
 
 
-from app.database.model import RadCheck, RadAcct, OpenVPNServer
+from app.database.model import RadCheck, RadAcct, OpenVPNServer, UserInfo
 from app.api.schema import User, UserUsage, DailyUsage, DetailsUsage, UserRenew
 from app.radius.radcheck import RadCheckModels, RadiusAttributeType, PlanPeriodToDatetime, FreeradiusStrDatetimeHelper
 
@@ -34,6 +34,12 @@ async def create_user_db(user: User, session: AsyncSession):
                     **radcheck.model_dump()
                 )
             )
+
+        session.add(
+            UserInfo(
+                username=radchecks_list.radchecks[0].username
+            )
+        )
 
 
 async def get_user_db(username: str, session: AsyncSession) -> RadCheckModels:

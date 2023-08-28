@@ -1,6 +1,7 @@
+import datetime
 import enum
 import uuid
-from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR, Enum, Text, Uuid
+from sqlalchemy import Table, Column, Integer, String, MetaData, ForeignKey, CHAR, Enum, Text, Uuid, func
 from sqlalchemy.dialects.mysql import VARCHAR, INTEGER, BIGINT, DATETIME
 
 from .base import Base
@@ -69,4 +70,33 @@ class RadAcct(Base):
     framedinterfaceid = Column(VARCHAR(32), default=None)
     delegatedipv6prefix = Column(VARCHAR(32), default=None)
     framedipaddress = Column(VARCHAR(15), nullable=False, default='')
+
+
+class UserInfo(Base):
+    __tablename__ = "userinfo"
+
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    username = Column(VARCHAR(128), nullable=True, index=True)
+    firstname = Column(VARCHAR(200), nullable=True, default=None)
+    lastname = Column(VARCHAR(200), nullable=True, default=None)
+    email = Column(VARCHAR(200), nullable=True, default=None)
+    department = Column(VARCHAR(200), nullable=True, default=None)
+    company = Column(VARCHAR(200), nullable=True, default=None)
+    workphone = Column(VARCHAR(200), nullable=True, default=None)
+    homephone = Column(VARCHAR(200), nullable=True, default=None)
+    mobilephone = Column(VARCHAR(200), nullable=True, default=None)
+    address = Column(VARCHAR(200), nullable=True, default=None)
+    city = Column(VARCHAR(200), nullable=True, default=None)
+    state = Column(VARCHAR(200), nullable=True, default=None)
+    country = Column(VARCHAR(100), nullable=True, default=None)
+    zip = Column(VARCHAR(200), nullable=True, default=None)
+    notes = Column(VARCHAR(200), nullable=True, default=None)
+    changeuserinfo = Column(VARCHAR(128), nullable=True, default=None)
+    portalloginpassword = Column(VARCHAR(128), nullable=True, default=None)
+    enableportallogin = Column(Integer, nullable=True, default=None)
+    creationdate = Column(DATETIME, nullable=True, server_default=func.now())
+    creationby = Column(VARCHAR(128), nullable=True, default=None)
+    updatedate = Column(DATETIME, nullable=True, onupdate=func.now())
+    updateby = Column(VARCHAR(128), nullable=True, default=None)
+
 
