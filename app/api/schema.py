@@ -49,7 +49,7 @@ class UserGetResponse(BaseModel):
     username: str
     password: str
     expire: datetime.datetime
-    max_clients: int
+    max_clients: int | None = None
     config_file_url: str = ""
 
     @model_validator(mode='after')
