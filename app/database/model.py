@@ -18,11 +18,12 @@ class OpenVPNServer(Base):
     __tablename__ = "openvpn_servers"
 
     ip = Column(String(255), primary_key=True, nullable=False, unique=True, index=True)
-    port = Column(Integer)
-    protocol = Column(Enum(OpenVPNProtocol), default=OpenVPNProtocol.tcp4)
-    x509_name = Column(String(255))
-    ca = Column(Text)
-    tls_crypt = Column(Text)
+    port = Column(Integer, nullable=False)
+    protocol = Column(Enum(OpenVPNProtocol), default=OpenVPNProtocol.tcp4, nullable=False)
+    x509_name = Column(String(255), nullable=False)
+    ca = Column(Text, nullable=False)
+    tls_crypt = Column(Text, nullable=False)
+    domain = Column(String(255), nullable=False)
 
 
 class RadCheck(Base):

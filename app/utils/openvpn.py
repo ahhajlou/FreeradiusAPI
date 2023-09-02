@@ -22,7 +22,7 @@ class OpenVPNConfigFile:
         openvpn_server = await query.get_server_by_ip(server_ip, db)
         self.config = OpenVPNSample.content.format(
             OPENVPN_PROTOCOL="tcp-client",
-            SERVER_IP=openvpn_server.ip,
+            SERVER_IP=openvpn_server.domain,
             SERVER_PORT=openvpn_server.port,
             X509_NAME=openvpn_server.x509_name,
             OPENVPN_CA=openvpn_server.ca,
