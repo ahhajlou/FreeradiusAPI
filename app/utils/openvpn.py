@@ -5,32 +5,34 @@ from fastapi.responses import Response, StreamingResponse
 from starlette.status import HTTP_403_FORBIDDEN, HTTP_204_NO_CONTENT
 
 from app import OpenVPNSample
+from app.database import query, AsyncSession
 from app.utils.jwt import create_access_token, decode_access_token
 from config import BASE_URL
 
 
 class OpenVPNConfigFile:
-    def __init__(self, username: str = None, server: str = None, token: str = None):
+    def __init__(self, username: str = None, server_ip: str = None, token: str = None):
         self.file_name = "file"
         self.username = username
-        self.server = server
+        self.server_ip = server_ip
         self.token = token
         self.config: str = ""
 
-    def generate_config(self, server):
+    async def generate_config(self, server_ip: str, db: AsyncSession):
+        openvpn_server = await query.get_server_by_ip(server_ip, db)
         self.config = OpenVPNSample.content.format(
             OPENVPN_PROTOCOL="tcp-client",
-            SERVER_IP="1.1.1.1",
-            SERVER_PORT="8080",
-            X509_NAME="Test",
-            OPENVPN_CA="Empty",
-            OPENVPN_TLS_CRYPT="Empty"
+            SERVER_IP=openvpn_server.ip,
+            SERVER_PORT=openvpn_server.port,
+            X509_NAME=openvpn_server.x509_name,
+            OPENVPN_CA=openvpn_server.ca,
+            OPENVPN_TLS_CRYPT=openvpn_server.tls_crypt
 
         )
 
-    def stream_response(self) -> StreamingResponse:
-        server = self.check_access_and_get_server()
-        self.generate_config(server)
+    async def stream_response(self, db: AsyncSession) -> StreamingResponse:
+        server_ip = self.check_access_and_get_server_ip()
+        await self.generate_config(server_ip, db)
         string_io = StringIO(self.config)
         string_io.seek(0)
 
@@ -44,9 +46,9 @@ class OpenVPNConfigFile:
         }
         return StreamingResponse(io_iter(), headers=headers, media_type="text/plain")
 
-    def file_response(self):
-        server = self.check_access_and_get_server()
-        self.generate_config(server)
+    async def file_response(self, db: AsyncSession):
+        server_ip = self.check_access_and_get_server_ip()
+        await self.generate_config(server_ip, db)
         response_headers = {
             "content-disposition": f'attachment; filename="{self.file_name}".ovpn',
         }
@@ -61,15 +63,15 @@ class OpenVPNConfigFile:
 
     def create_jwt_token(self):
         data = dict()
-        data.update(username=self.username, server=self.server)
+        data.update(username=self.username, server_ip=self.server_ip)
         token = create_access_token(data)
         return token
 
-    def check_access_and_get_server(self):
+    def check_access_and_get_server_ip(self):
         try:
             data = decode_access_token(self.token)
-            if server := data.get("server"):
-                return server
+            if server_ip := data.get("server_ip"):
+                return server_ip
             else:
                 raise HTTPException(status_code=HTTP_204_NO_CONTENT)
         except JWTError:

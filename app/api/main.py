@@ -81,7 +81,8 @@ async def reset_stats(username: str, db: AsyncSession = Depends(get_db), api_key
 
 @app.get("/download/openvpn/{token}")
 async def download_openvpn_config(token: str, db: AsyncSession = Depends(get_db)):
-    return OpenVPNConfigFile(token=token).stream_response()
+    response = await OpenVPNConfigFile(token=token).stream_response(db)
+    return response
 
 
 @app.get("/admin", response_class=PlainTextResponse)

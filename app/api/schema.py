@@ -9,7 +9,7 @@ from pydantic import (
 
 from config import FREERADIUS_EXPIRATION_DATE_FORMAT
 from app.radius import radcheck
-from app.utils.openvpn import OpenVPNConfigFile
+from app.utils import openvpn
 
 
 class User(BaseModel):
@@ -32,7 +32,10 @@ class UserCreateResponse(BaseModel):
     @model_validator(mode='after')
     def create_link(self):
         if not self.config_file_url:
-            self.config_file_url = OpenVPNConfigFile(username=self.username, server="s1").download_url()  # TODO: temporary, complete it
+            self.config_file_url = openvpn.OpenVPNConfigFile(
+                username=self.username,
+                server_ip=self.server_ip_address
+            ).download_url()  # TODO: temporary, complete it
         return self
 
     @classmethod
@@ -51,11 +54,15 @@ class UserGetResponse(BaseModel):
     expire: datetime.datetime
     max_clients: int | None = None
     config_file_url: str = ""
+    openvpn_server_ip: str | None = None
 
     @model_validator(mode='after')
     def create_link(self):
         if not self.config_file_url:
-            self.config_file_url = OpenVPNConfigFile(username=self.username, server="s1").download_url()  # TODO: temporary, complete it
+            self.config_file_url = openvpn.OpenVPNConfigFile(
+                username=self.username,
+                server_ip=self.openvpn_server_ip
+            ).download_url()  # TODO: temporary, complete it
         return self
 
     @classmethod
@@ -71,6 +78,9 @@ class UserGetResponse(BaseModel):
 
             if model.attribute == radcheck.RadiusAttributeType.simultaneous_use:
                 d.update(max_clients=model.value)
+
+            if model.attribute == radcheck.RadiusAttributeType.nas_ip_address:
+                d.update(openvpn_server_ip=model.value)
 
         return cls.model_validate(d)
 
