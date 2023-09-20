@@ -14,6 +14,7 @@ class GetSessionDB:  # Async context manager
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # for AsyncEngine created in function scope, close and
         # clean-up pooled connections
+        await self.session.close()
         await engine.dispose()
     @staticmethod
     async def create_all():
