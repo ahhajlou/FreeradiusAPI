@@ -9,7 +9,7 @@ from fastapi.responses import PlainTextResponse
 from app import app
 from app.radius import radcheck
 from app.utils.openvpn import OpenVPNConfigFile
-from .schema import User, UserCreateResponse, UserGetResponse, UserUsage, UserRenew, DetailsUsage
+from .schema import User, UserCreateResponse, UserGetResponse, UserUsage, UserRenew, DetailsUsage, UserRenewResponse
 from app.database import get_db, AsyncSession, GetSessionDB
 from .auth import get_api_key
 from app.database.model import *
@@ -48,11 +48,19 @@ async def update_user(user: User, db: AsyncSession = Depends(get_db), api_key: s
 
 
 @app.post("/user/renew")
-async def renew_user(user: UserRenew, db: AsyncSession = Depends(get_db), api_key: str = Security(get_api_key)):
+async def renew_user(
+        user: UserRenew,
+        db: AsyncSession = Depends(get_db),
+        api_key: str = Security(get_api_key)
+) -> UserRenewResponse:
+
     try:
         await renew_user_db(user, db)
     except UserNotFoundError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User not found.")
+
+    expire_date = radcheck.PlanPeriodToDatetime(user.plan_period).date_datetime
+    return UserRenewResponse(**user.model_dump(), expire=expire_date)
 
 
 @app.get("/user/{username}/get")

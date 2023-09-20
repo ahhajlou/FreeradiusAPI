@@ -91,6 +91,11 @@ class UserRenew(BaseModel):
     plan_period: int = Field(gt=0, description="Plan period should be greater than zero.")
 
 
+class UserRenewResponse(BaseModel):
+    username: str
+    expire: datetime.datetime
+
+
 class DailyUsage(BaseModel):
     uploads: int
     downloads: int
