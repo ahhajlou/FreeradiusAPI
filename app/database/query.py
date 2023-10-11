@@ -1,4 +1,5 @@
 import datetime
+import sqlalchemy
 from typing import List
 from pydantic import TypeAdapter
 # from fastapi import BackgroundTasks
@@ -17,6 +18,12 @@ class UserExists(Exception):
 
 class UserNotFoundError(Exception):
     pass
+
+
+class ServerNotFound(Exception):
+    def __init__(self, server_ip: str, *args):
+        super().__init__(server_ip, *args)
+        self.server_ip = server_ip
 
 
 async def create_user_db(user: User, session: AsyncSession):
@@ -125,6 +132,9 @@ async def total_usage(username: str, session: AsyncSession) -> UserUsage:
 
 async def get_server_by_ip(ip: str, session: AsyncSession) -> OpenVPNServer:
     stmt = select(OpenVPNServer).where(OpenVPNServer.ip == ip)
-    result = await session.execute(stmt)
-    openvpn_server = result.scalar_one()
+    try:
+        result = await session.execute(stmt)
+        openvpn_server = result.scalar_one()
+    except sqlalchemy.exc.NoResultFound:
+        raise ServerNotFound(server_ip=ip)
     return openvpn_server

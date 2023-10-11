@@ -21,6 +21,7 @@ from app.database.query import (
     renew_user_db,
     UserExists,
     UserNotFoundError,
+    ServerNotFound,
     remove_accounting_data
 )
 
@@ -89,8 +90,11 @@ async def reset_stats(username: str, db: AsyncSession = Depends(get_db), api_key
 
 @app.get("/download/openvpn/{token}")
 async def download_openvpn_config(token: str, db: AsyncSession = Depends(get_db)):
-    response = await OpenVPNConfigFile(token=token).stream_response(db)
-    return response
+    try:
+        response = await OpenVPNConfigFile(token=token).stream_response(db)
+        return response
+    except ServerNotFound as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Server not found. Server IP: {e.server_ip}")
 
 
 @app.get("/admin", response_class=PlainTextResponse)

@@ -10,6 +10,10 @@ from app.utils.jwt import create_access_token, decode_access_token
 from config import BASE_URL
 
 
+class ServerNotFound(Exception):
+    pass
+
+
 class OpenVPNConfigFile:
     def __init__(self, username: str = None, server_ip: str = None, token: str = None):
         self.file_name = "file"

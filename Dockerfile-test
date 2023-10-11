@@ -1,0 +1,9 @@
+FROM alpine:3.18.4
+
+RUN apk update && apk add --no-cache mysql-client
+
+#CMD ["/bin/sh"]
+ENTRYPOINT ["/bin/sh"]
+
+
+
